@@ -1,0 +1,37 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.ros.android.jaguar"
+    android:versionCode="1"
+    android:versionName="1.0" >
+
+    <uses-sdk
+        android:minSdkVersion="15"
+        android:targetSdkVersion="21" />
+    
+    
+     <permission android:name="com.darpa.ros"
+        android:protectionLevel="normal"
+        android:label="Jaguar Service"
+        android:description="@string/remote_service_permission"/>
+     
+     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme" >
+        <service
+            android:name="org.ros.android.jaguar.SocketMain"
+            android:enabled="true"
+            android:exported="true" >
+            android:permission="com.darpa.ros">
+            <intent-filter>
+                <action android:name="com.darpa.ros"/>
+            </intent-filter>
+        </service>
+        
+        
+    </application>
+
+</manifest>
