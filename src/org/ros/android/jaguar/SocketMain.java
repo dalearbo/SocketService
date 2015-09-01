@@ -10,7 +10,6 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
 
-
 import android.app.Service;
 import android.content.Intent;
 import android.location.Location;
@@ -22,12 +21,11 @@ public class SocketMain extends Service{
 	
 	private Socket socket;
 	private static final int SERVERPORT = 5000;
-	private static final String SERVER_IP = "192.168.0.100";
+	private static final String SERVER_IP = "192.168.0.81";
 	private DataOutputStream outChannel;
 	private String tag = "Socket";
 	private Thread clientThread;
-    private ROSServiceManager jaguarManager;
-    Location currentLocation;
+    List<ROSServiceReporter> targets;
 	
 	@Override
 	public IBinder onBind(Intent arg0) {
@@ -59,7 +57,9 @@ public class SocketMain extends Service{
 	    			if (socket!=null && !socket.isClosed()){
 	    				Log.d("Socket","Attempting to Write "+commandString);
 	    				//PrintWriter out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())),true);
-	    				outChannel.writeChars(commandString);
+	    				//outChannel.writeChars(commandString);
+	    				byte[] bytes = commandString.getBytes();
+	    				outChannel.write(bytes);
 	    				outChannel.flush();
 	    				Log.d(tag,"Writing "+commandString);
 	    			} else{
@@ -110,6 +110,7 @@ public class SocketMain extends Service{
 			try{
 				//this.input = new BufferedReader(new InputStreamReader(this.clientSocket.getInputStream()));
 				this.input = new DataInputStream(clientSocket.getInputStream());
+				
 				} catch(IOException e){
 					e.printStackTrace();
 				}
@@ -125,7 +126,26 @@ public class SocketMain extends Service{
 		        		 String data = new String(b);
 		        		 data = data.trim();
 		        		 if(data!=null && data.length()!=0){
-		        			 Log.d(tag, "Received: "+data + " length:" + data.length());
+		        			 Log.d(tag, "Received: "+data + ", length:" + data.length());
+		        			 Location location = new Location("");
+		        			 String[] locationInfo = data.split(",");
+		        			 location.setLatitude(Double.valueOf(locationInfo[0]));
+		        			 location.setLongitude(Double.valueOf(locationInfo[1]));
+		        			 location.setSpeed(Float.valueOf(locationInfo[2]));
+		        			 location.setBearing((float) ((90-Float.valueOf(locationInfo[3])*180/Math.PI))%360);
+		        			// Log.d(tag,"Bearing: "+location.getBearing());
+		        			
+		        			 synchronized (reporters) {
+		     					targets = new ArrayList<ROSServiceReporter>(reporters);
+		     				}
+		     				for(ROSServiceReporter rosReporter : targets) {
+		     					try {
+		     							rosReporter.reportGPS(location);
+
+			     					} catch (RemoteException e) {
+			     						Log.e("Map","report",e);
+			     					}
+		     				}
 		        			 //This is where you decode the gps information and make a location object!!
 		        		 }
 		        	 }
@@ -154,26 +174,6 @@ public class SocketMain extends Service{
 	        super.onCreate();
 	        Log.d(tag, "Socket SocketMain onCreate");
 
-	        jaguarManager = new ROSServiceManager(this, new ROSServiceManager.OnConnectedListener() {
-	            @Override public void onConnected() {
-	                Log.d(tag, "Jaguar connected - adding reporter");
-	                jaguarManager.add(jaguarServiceReporter);
-
-	            }
-	            @Override public void onDisconnected() {
-	                Log.d(tag, "Jaguar disconnected - removing reporter");
-	                jaguarManager.remove(jaguarServiceReporter);
-	            }
-	        });
-
 	    }
-
-	    private ROSServiceReporter jaguarServiceReporter = new ROSServiceReporter.Stub() {
-	        @Override
-	        public void reportGPS(Location location) throws RemoteException {
-	            currentLocation=location;
-	        }
-	    };
-
 
 }
