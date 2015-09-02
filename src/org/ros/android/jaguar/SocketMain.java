@@ -55,9 +55,6 @@ public class SocketMain extends Service{
 	        public void publishCommand(String commandString) throws RemoteException {
 	        	try{
 	    			if (socket!=null && !socket.isClosed()){
-	    				Log.d("Socket","Attempting to Write "+commandString);
-	    				//PrintWriter out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())),true);
-	    				//outChannel.writeChars(commandString);
 	    				byte[] bytes = commandString.getBytes();
 	    				outChannel.write(bytes);
 	    				outChannel.flush();
@@ -129,24 +126,28 @@ public class SocketMain extends Service{
 		        			 Log.d(tag, "Received: "+data + ", length:" + data.length());
 		        			 Location location = new Location("");
 		        			 String[] locationInfo = data.split(",");
+		        			 Log.d(tag,"Location Info Size: "+locationInfo.length);
+		        			 if(locationInfo.length>=4){
 		        			 location.setLatitude(Double.valueOf(locationInfo[0]));
 		        			 location.setLongitude(Double.valueOf(locationInfo[1]));
 		        			 location.setSpeed(Float.valueOf(locationInfo[2]));
 		        			 location.setBearing((float) ((90-Float.valueOf(locationInfo[3])*180/Math.PI))%360);
-		        			// Log.d(tag,"Bearing: "+location.getBearing());
+		        			 }
 		        			
 		        			 synchronized (reporters) {
 		     					targets = new ArrayList<ROSServiceReporter>(reporters);
+		     					Log.d("DEBUG1","targets: "+targets.size());
+		     					
 		     				}
 		     				for(ROSServiceReporter rosReporter : targets) {
 		     					try {
 		     							rosReporter.reportGPS(location);
 
 			     					} catch (RemoteException e) {
-			     						Log.e("Map","report",e);
+			     						Log.e(tag,"report",e);
 			     					}
 		     				}
-		        			 //This is where you decode the gps information and make a location object!!
+		        			 
 		        		 }
 		        	 }
 				
