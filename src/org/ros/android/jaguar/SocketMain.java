@@ -20,18 +20,22 @@ import android.util.Log;
 public class SocketMain extends Service{
 	
 	private Socket socket;
-	private static final int SERVERPORT = 5000;
+	private static final int SERVERPORTSEND = 5000;			//Port for sending motor commands
+	private static final int SERVERPORTREC = 5001;			//Use a separate port for receiving GPS
 	private static final String SERVER_IP = "192.168.0.81";
 	private DataOutputStream outChannel;
 	private String tag = "Socket";
-	private Thread clientThread;
+	private Thread clientThread0;
+	private Thread clientThread1;
     List<ROSServiceReporter> targets;
 	
 	@Override
 	public IBinder onBind(Intent arg0) {
 		Log.d(tag, "Ros/Socket bind");
-		clientThread = new ClientThread();
-		clientThread.start();
+		clientThread0 = new ClientThread(SERVERPORTSEND);
+		clientThread1 = new ClientThread(SERVERPORTREC);
+		clientThread0.start();
+		clientThread1.start();
 		return socketBinder;
 	}
 	
@@ -55,6 +59,7 @@ public class SocketMain extends Service{
 	        public void publishCommand(String commandString) throws RemoteException {
 	        	try{
 	    			if (socket!=null && !socket.isClosed()){
+	    				commandString.concat("\0");	//needed as an end of line marker
 	    				byte[] bytes = commandString.getBytes();
 	    				outChannel.write(bytes);
 	    				outChannel.flush();
@@ -75,23 +80,40 @@ public class SocketMain extends Service{
 	
 	class ClientThread extends Thread{
 
+		private final int SERVERPORT;
+		
+		public ClientThread(int socketPort){
+			this.SERVERPORT = socketPort;
+		}
+		
 		@Override
 		public void run() {
 			while(!isInterrupted()){
 				try{
 					if(socket == null || socket.isClosed()){
-						Log.d(tag,"Trying to open Socket");
+						//Log.d(tag,"Trying to open Socket");
 						InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
 						socket = new Socket(serverAddr, SERVERPORT);
-						outChannel = new DataOutputStream(socket.getOutputStream());
-						CommunicationThread commThread = new CommunicationThread(socket);
-						new Thread(commThread).start();
-						Log.d(tag,"Socket Opened");
+						
+						
+						if(SERVERPORT==SERVERPORTSEND){							//outChannel is set up on the send port only
+							outChannel = new DataOutputStream(socket.getOutputStream());
+						} else{
+							CommunicationThread commThread = new CommunicationThread(socket);	//only need comm port for receive socket
+							new Thread(commThread).start();
+						}
+						Log.d(tag,"Socket "+SERVERPORT+" Opened");
 					}
 				} catch(UnknownHostException e1){
 					e1.printStackTrace();
 				} catch (IOException e1) {
 					e1.printStackTrace();
+				} 
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
 			}
 		}
@@ -128,16 +150,16 @@ public class SocketMain extends Service{
 		        			 String[] locationInfo = data.split(",");
 		        			 Log.d(tag,"Location Info Size: "+locationInfo.length);
 		        			 if(locationInfo.length>=4){
-		        			 location.setLatitude(Double.valueOf(locationInfo[0]));
-		        			 location.setLongitude(Double.valueOf(locationInfo[1]));
-		        			 location.setSpeed(Float.valueOf(locationInfo[2]));
-		        			 location.setBearing((float) ((90-Float.valueOf(locationInfo[3])*180/Math.PI))%360);
+			        			 location.setLatitude(Double.valueOf(locationInfo[0]));
+			        			 location.setLongitude(Double.valueOf(locationInfo[1]));
+			        			 location.setSpeed(Float.valueOf(locationInfo[2]));
+			        			 location.setBearing(Float.valueOf(locationInfo[3])); 
+			        			 //location.setBearing((float) ((90-Float.valueOf(locationInfo[3])*180/Math.PI))%360);
 		        			 }
 		        			
 		        			 synchronized (reporters) {
 		     					targets = new ArrayList<ROSServiceReporter>(reporters);
-		     					Log.d("DEBUG1","targets: "+targets.size());
-		     					
+		     					//Log.d("DEBUG1","targets: "+targets.size());
 		     				}
 		     				for(ROSServiceReporter rosReporter : targets) {
 		     					try {
@@ -162,9 +184,13 @@ public class SocketMain extends Service{
 	
 	 @Override
 	    public void onDestroy() {
-	        if(clientThread != null){
-	            clientThread.interrupt();
-	            clientThread = null;
+	        if(clientThread0 != null){
+	            clientThread0.interrupt();
+	            clientThread0 = null;
+	        }
+	        if(clientThread1 != null){
+	            clientThread1.interrupt();
+	            clientThread1 = null;
 	        }
 	        Log.d(tag,"Socket onDestroy");
 	        super.onDestroy();
