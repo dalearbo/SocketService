@@ -109,12 +109,6 @@ public class SocketMain extends Service{
 				} catch (IOException e1) {
 					e1.printStackTrace();
 				} 
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
 			}
 		}
 	}
@@ -154,12 +148,10 @@ public class SocketMain extends Service{
 			        			 location.setLongitude(Double.valueOf(locationInfo[1]));
 			        			 location.setSpeed(Float.valueOf(locationInfo[2]));
 			        			 location.setBearing(Float.valueOf(locationInfo[3])); 
-			        			 //location.setBearing((float) ((90-Float.valueOf(locationInfo[3])*180/Math.PI))%360);
 		        			 }
 		        			
 		        			 synchronized (reporters) {
 		     					targets = new ArrayList<ROSServiceReporter>(reporters);
-		     					//Log.d("DEBUG1","targets: "+targets.size());
 		     				}
 		     				for(ROSServiceReporter rosReporter : targets) {
 		     					try {
@@ -174,6 +166,9 @@ public class SocketMain extends Service{
 		        	 }
 				
 				} catch(IOException e){
+					e.printStackTrace();
+				}
+				catch(NumberFormatException e) {
 					e.printStackTrace();
 				}
 			}
