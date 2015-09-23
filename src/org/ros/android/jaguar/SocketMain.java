@@ -22,7 +22,7 @@ public class SocketMain extends Service{
 	private Socket socket;
 	private static final int SERVERPORTSEND = 5000;			//Port for sending motor commands
 	private static final int SERVERPORTREC = 5001;			//Use a separate port for receiving GPS
-	private static final String SERVER_IP = "192.168.0.81";
+	private static final String SERVER_IP = "192.168.0.82";
 	private DataOutputStream outChannel;
 	private String tag = "Socket";
 	private Thread clientThread0;
@@ -94,7 +94,9 @@ public class SocketMain extends Service{
 						//Log.d(tag,"Trying to open Socket");
 						InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
 						socket = new Socket(serverAddr, SERVERPORT);
-						
+						while(socket==null){
+							socket = new Socket(serverAddr, SERVERPORT);
+						}
 						
 						if(SERVERPORT==SERVERPORTSEND){							//outChannel is set up on the send port only
 							outChannel = new DataOutputStream(socket.getOutputStream());
@@ -139,10 +141,10 @@ public class SocketMain extends Service{
 		        		 String data = new String(b);
 		        		 data = data.trim();
 		        		 if(data!=null && data.length()!=0){
-		        			 Log.d(tag, "Received: "+data + ", length:" + data.length());
+		        			// Log.d(tag, "Received: "+data + ", length:" + data.length());
 		        			 Location location = new Location("");
 		        			 String[] locationInfo = data.split(",");
-		        			 Log.d(tag,"Location Info Size: "+locationInfo.length);
+		        			 //Log.d(tag,"Location Info Size: "+locationInfo.length);
 		        			 if(locationInfo.length>=4){
 			        			 location.setLatitude(Double.valueOf(locationInfo[0]));
 			        			 location.setLongitude(Double.valueOf(locationInfo[1]));
