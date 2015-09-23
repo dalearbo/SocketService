@@ -21,21 +21,25 @@ public class SocketMain extends Service{
 	
 	private Socket socket;
 	private static final int SERVERPORTSEND = 5000;			//Port for sending motor commands
-	private static final int SERVERPORTREC = 5001;			//Use a separate port for receiving GPS
+	private static final int SERVERPORTGPS = 5001;			//Use a separate port for receiving GPS
+	private static final int SERVERPORTWHEEL = 5002;		//Use this port for receiving wheel motion
 	private static final String SERVER_IP = "192.168.0.82";
 	private DataOutputStream outChannel;
 	private String tag = "Socket";
 	private Thread clientThread0;
 	private Thread clientThread1;
+	private Thread clientThread2;
     List<ROSServiceReporter> targets;
 	
 	@Override
 	public IBinder onBind(Intent arg0) {
 		Log.d(tag, "Ros/Socket bind");
 		clientThread0 = new ClientThread(SERVERPORTSEND);
-		clientThread1 = new ClientThread(SERVERPORTREC);
+		clientThread1 = new ClientThread(SERVERPORTGPS);
+		clientThread2 = new ClientThread(SERVERPORTWHEEL);
 		clientThread0.start();
 		clientThread1.start();
+		clientThread2.start();
 		return socketBinder;
 	}
 	
@@ -100,10 +104,14 @@ public class SocketMain extends Service{
 						
 						if(SERVERPORT==SERVERPORTSEND){							//outChannel is set up on the send port only
 							outChannel = new DataOutputStream(socket.getOutputStream());
-						} else{
-							CommunicationThread commThread = new CommunicationThread(socket);	//only need comm port for receive socket
+						} else if(SERVERPORT==SERVERPORTGPS){
+							GPSCommunicationThread commThread = new GPSCommunicationThread(socket);	//only need comm port for receive sockets
+							new Thread(commThread).start();
+						} else { //SERVERPORTWHEEL
+							WheelCommunicationThread commThread = new WheelCommunicationThread(socket);	//only need comm port for receive sockets
 							new Thread(commThread).start();
 						}
+							
 						Log.d(tag,"Socket "+SERVERPORT+" Opened");
 					}
 				} catch(UnknownHostException e1){
@@ -115,15 +123,14 @@ public class SocketMain extends Service{
 		}
 	}
 	
-	class CommunicationThread implements Runnable {
+	class GPSCommunicationThread implements Runnable {
 
 		private Socket clientSocket;
 		private DataInputStream input;
 		
-		public CommunicationThread(Socket clientSocket){
+		public GPSCommunicationThread(Socket clientSocket){
 			this.clientSocket = clientSocket;
 			try{
-				//this.input = new BufferedReader(new InputStreamReader(this.clientSocket.getInputStream()));
 				this.input = new DataInputStream(clientSocket.getInputStream());
 				
 				} catch(IOException e){
@@ -178,6 +185,75 @@ public class SocketMain extends Service{
 		}
 		
 	}
+	
+	class WheelCommunicationThread implements Runnable {
+
+		private Socket clientSocket;
+		private DataInputStream input;
+		
+		public WheelCommunicationThread(Socket clientSocket){
+			this.clientSocket = clientSocket;
+			try{
+				this.input = new DataInputStream(clientSocket.getInputStream());
+				
+				} catch(IOException e){
+					e.printStackTrace();
+				}
+		}
+		
+		@Override
+		public void run() {
+			while(!Thread.currentThread().isInterrupted()){
+				try{
+					byte[] b = new byte[10000];
+					if(!clientSocket.isClosed()){
+		        		 input.read(b);
+		        		 String data = new String(b);
+		        		 data = data.trim();
+		        		 if(data!=null && data.length()!=0){
+		        			 /////Insert motor code here
+		        			 
+		        			 
+		        			 double forward = 0;
+		        			 double right = 0;
+		        			 Location location = new Location("");
+		        			 String[] locationInfo = data.split(",");
+		        			 //Log.d(tag,"Location Info Size: "+locationInfo.length);
+		        			 if(locationInfo.length>=4){
+			        			 location.setLatitude(Double.valueOf(locationInfo[0]));
+			        			 location.setLongitude(Double.valueOf(locationInfo[1]));
+			        			 location.setSpeed(Float.valueOf(locationInfo[2]));
+			        			 location.setBearing(Float.valueOf(locationInfo[3])); 
+		        			 }
+		        			
+		        			 synchronized (reporters) {
+		     					targets = new ArrayList<ROSServiceReporter>(reporters);
+		     				}
+		     				for(ROSServiceReporter rosReporter : targets) {
+		     					try {
+		     							rosReporter.reportWheel(forward, right);
+
+			     					} catch (RemoteException e) {
+			     						Log.e(tag,"report",e);
+			     					}
+		     				}
+		        			 
+		        		 }
+		        	 }
+				
+				} catch(IOException e){
+					e.printStackTrace();
+				}
+				catch(NumberFormatException e) {
+					e.printStackTrace();
+				}
+			}
+			
+		}
+		
+	}
+	
+	
 	
 	 @Override
 	    public void onDestroy() {
